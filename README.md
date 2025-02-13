@@ -92,8 +92,6 @@ Finally, write the model to the file given as second argument to the program and
 serialisation as specified by the file’s extension.
 
 ### Executing program: Jena
-**Maven library needed:** org.apache.jena:jena-core:4.6.1
-
 > Program must successfully compile with the command
 > ```bash
 > javac -cp "lib/*:." src/main/java/no/uio/ifi/in4060/oblig/Simpsons.java

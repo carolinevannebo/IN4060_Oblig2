@@ -14,7 +14,6 @@ public class Simpsons {
     private static String outputPath;
     private static String serializationLanguage = null;
     private static InputStream inputStream;
-    private static Reader reader;
 
     private static Model model;
     private static Map<String, String> namespaces;
@@ -47,12 +46,27 @@ public class Simpsons {
 
         System.out.println("\n-------------ADDING INFORMATION--------------");
         addInformationToModel();
+
+        System.out.println("\n---------------WRITING OUTPUT----------------");
+        writeOutput();
+    }
+
+    private static void writeOutput() {
+        System.out.println("Using serialization language: " + serializationLanguage);
+        String absolutePath = System.getProperty("user.dir") +
+                "/src/main/java/no/uio/ifi/in4060/oblig/" +
+                outputPath;
+        try {
+            model.write(new FileOutputStream(absolutePath), serializationLanguage);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("Successfully wrote output to: " + absolutePath);
     }
 
     private static void buildModel() {
         model = ModelFactory.createDefaultModel();
         model.read(inputStream, null, serializationLanguage);
-        //model.read(reader, null, serializationLanguage); // todo: don't know which to use
         namespaces = model.getNsPrefixMap();
 
         // define properties
@@ -63,9 +77,9 @@ public class Simpsons {
         famHasFather = getProperty("fam", "hasFather");
 
         // new properties
-        famInfant = model.createProperty("fam", "Infant");
-        famMinor = model.createProperty("fam", "Minor");
-        famOld = model.createProperty("fam", "Old");
+        famInfant = model.createProperty(namespaces.get("fam"), "Infant");
+        famMinor = model.createProperty(namespaces.get("fam"), "Minor");
+        famOld = model.createProperty(namespaces.get("fam"), "Old");
 
         // define resources
         foafPerson = getResource("foaf", "Person");
@@ -78,7 +92,7 @@ public class Simpsons {
     private static void addInformationToModel() {
         maggie.addProperty(rdfType, foafPerson)
                 .addProperty(foafName, "Maggie Simpson")
-                .addProperty(foafAge, getXSDInt(1));
+                .getProperty(foafAge).changeObject(getXSDInt(1));
         mona.addProperty(rdfType, foafPerson)
                 .addProperty(foafName, "Mona Simpson")
                 .addProperty(foafAge, getXSDInt(70))
@@ -88,7 +102,7 @@ public class Simpsons {
                 .addProperty(foafAge, getXSDInt(78))
                 .addProperty(famHasSpouse, mona);
         herb.addProperty(rdfType, foafPerson)
-                .addProperty(famHasFather, foafPerson);
+                .addProperty(famHasFather, model.createResource());
 
         //Iterator<Statement> foafAgeIterator = model.listStatements(maggie, foafName, (RDFNode) null);
         //Iterator<Statement> foafAgeIterator = model.listStatements((Resource) null, (Property) model.getProperty(fam+"hasFamilyMember"), (RDFNode) null);
@@ -108,19 +122,14 @@ public class Simpsons {
             Statement statement = rdfTypeIterator.next();
             printStatement(statement);
         }
-
     }
 
     private static void addAgeGroup(Resource person) {
         int age = person.getProperty(foafAge).getObject().asLiteral().getInt();
 
-        if (age < 2) {
-            person.addProperty(rdfType, famInfant);
-        } else if (age < 18) {
-            person.addProperty(rdfType, famMinor);
-        } else if (age > 70) {
-            person.addProperty(rdfType, famOld);
-        }
+        if (age < 2) person.addProperty(rdfType, famInfant);
+        if (age < 18) person.addProperty(rdfType, famMinor);
+        if (age > 70) person.addProperty(rdfType, famOld);
     }
 
     private static RDFNode getXSDInt(int number) {
@@ -147,14 +156,15 @@ public class Simpsons {
     private static void checkSerializationFormat() {
         if (inputPath.endsWith(".rdf")) {
             serializationLanguage = "RDF/XML";
+        } else if (inputPath.endsWith(".ttl")) {
+            serializationLanguage = "TURTLE";
         } else if (inputPath.endsWith(".n3")) {
             serializationLanguage = "N3";
         } else if (inputPath.endsWith(".nt")) {
             serializationLanguage = "N-TRIPLE";
         } else {
             throw new Error("\n-------------UNKNOWN SERIALIZATION FORMAT-------------" +
-                    "\nSupported formats are: .rdf (RDF/XML), .n3 (N-TRIPLE), .nt (N-TRIPLE)" +
-                    "\nApparently Jena has removed Turtle \uD83D\uDE43 sorry for the inconvenience..." +
+                    "\nSupported formats are: .rdf (RDF/XML), .ttl (TURTLE), .n3 (N-TRIPLE), .nt (N-TRIPLE)" +
                     "\n-----------------------------------------------------"
             );
         }
@@ -162,16 +172,13 @@ public class Simpsons {
     }
 
     private static void locateInputFile() {
-        File inputFile = new File(inputPath);
+        File inputFile;
         try {
             inputStream = new FileInputStream(inputPath);
-            reader = new FileReader(inputFile);
         } catch (FileNotFoundException e) {
             try {
                 inputPath = System.getProperty("user.dir") + "/src/main/java/no/uio/ifi/in4060/oblig/" + inputPath;
                 inputStream = new FileInputStream(inputPath);
-                inputFile = new File(inputPath);
-                reader = new FileReader(inputFile);
             } catch (FileNotFoundException ex) {
                 throw new Error("\n-------------COULD NOT FIND FILE-------------" +
                         "\nPlease provide the correct path to the RDF file" +
